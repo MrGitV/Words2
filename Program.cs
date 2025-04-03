@@ -50,11 +50,29 @@ class Program
     // Gets player names from user input with basic validation
     private static void GetPlayerNames()
     {
-        Console.WriteLine(LocalizationManager.GetMessage("EnterPlayer1Name", language));
-        player1Name = Console.ReadLine()?.Trim() ?? "Player1";
+        bool isValid;
+        do
+        {
+            Console.WriteLine(LocalizationManager.GetMessage("EnterPlayer1Name", language));
+            player1Name = Console.ReadLine()?.Trim() ?? string.Empty;
+            isValid = !string.IsNullOrWhiteSpace(player1Name);
+            if (!isValid) Console.WriteLine(LocalizationManager.GetMessage("InvalidName", language));
+        } while (!isValid);
 
-        Console.WriteLine(LocalizationManager.GetMessage("EnterPlayer2Name", language));
-        player2Name = Console.ReadLine()?.Trim() ?? "Player2";
+        do
+        {
+            Console.WriteLine(LocalizationManager.GetMessage("EnterPlayer2Name", language));
+            player2Name = Console.ReadLine()?.Trim() ?? string.Empty;
+            isValid = !string.IsNullOrWhiteSpace(player2Name) &&
+                     !player2Name.Equals(player1Name, StringComparison.OrdinalIgnoreCase);
+
+            if (!isValid)
+            {
+                Console.WriteLine(player2Name.Equals(player1Name, StringComparison.OrdinalIgnoreCase)
+                    ? LocalizationManager.GetMessage("DuplicatePlayerName", language)
+                    : LocalizationManager.GetMessage("InvalidName", language));
+            }
+        } while (!isValid);
     }
 
     // Loads game statistics from JSON file or initializes new data structure
@@ -141,6 +159,8 @@ class Program
             word = Console.ReadLine()?.ToLower();
         } while (!IsOriginalWordValid(word));
 
+        ShowAvailableCommands();
+
         return word!;
     }
 
@@ -182,13 +202,13 @@ class Program
             PromptCurrentPlayer();
             var input = Console.ReadLine()?.ToLower();
 
-            if (timeIsUp) break;
-
             if (IsCommand(input))
             {
                 ProcessCommand(input!);
                 continue;
             }
+
+            if (timeIsUp) break;
 
             if (IsInputValid(input))
             {
@@ -202,12 +222,20 @@ class Program
 
     }
 
+    // Method showing available commands
+    private static void ShowAvailableCommands()
+    {
+        Console.WriteLine(LocalizationManager.GetMessage("AvailableCommands", language));
+        Console.WriteLine(LocalizationManager.GetMessage("ContinuePrompt", language));
+    }
+
     // Checks if input is a command (starts with '/')
     private static bool IsCommand(string? input) => input?.StartsWith("/") ?? false;
 
     // Executes game commands based on user input
     private static void ProcessCommand(string command)
     {
+
         switch (command)
         {
             case "/show-words":
@@ -221,6 +249,7 @@ class Program
                 break;
             default:
                 Console.WriteLine(LocalizationManager.GetMessage("UnknownCommand", language));
+                Console.WriteLine(LocalizationManager.GetMessage("AvailableCommands", language));
                 break;
         }
     }
@@ -230,7 +259,7 @@ class Program
     {
         Console.WriteLine(LocalizationManager.GetMessage("CommandShowWords", language));
         foreach (var word in usedWords)
-            Console.WriteLine(word);
+            Console.WriteLine($"- {word}");
     }
 
     // Displays current players' score from game statistics
@@ -297,13 +326,27 @@ class Program
     // Handles restart prompt and either restarts game or exits
     private static void HandleRestartPrompt()
     {
+        string input;
         do
         {
+            Console.WriteLine(LocalizationManager.GetMessage("AvailableCommands", language));
             Console.WriteLine(LocalizationManager.GetMessage("PlayAgain", language));
-            playAgain = Console.ReadLine()?.ToLower() ?? "";
-        } while (!IsValidRestartResponse(playAgain));
 
-        if (playAgain == "да" || playAgain == "yes")
+            input = Console.ReadLine()?.ToLower() ?? "";
+
+            if (IsCommand(input))
+            {
+                ProcessCommand(input);
+                continue;
+            }
+
+            if (!IsValidRestartResponse(input))
+            {
+                Console.WriteLine(LocalizationManager.GetMessage("InvalidResponse", language));
+            }
+        } while (!IsValidRestartResponse(input));
+
+        if (input == "да" || input == "yes")
         {
             StartGame();
         }
@@ -317,6 +360,12 @@ class Program
         !string.IsNullOrEmpty(word) &&
         word.GroupBy(c => c).All(g =>
             originalWord.Count(c => c == g.Key) >= g.Count());
+
+    // Data structure for storing game statistics and player wins
+    public class GameData
+    {
+        public Dictionary<string, int> PlayerWins { get; set; } = new Dictionary<string, int>();
+    }
 }
 
 // Provides localized messages for different game components
@@ -337,7 +386,12 @@ static class LocalizationManager
                 {"CommandShowWords", "Использованные слова в текущей игре:"},
                 {"CommandScore", "Счет текущих игроков: {player1}: {wins1}, {player2}: {wins2}"},
                 {"CommandTotalScore", "Общий счет для всех игроков:"},
-                {"UnknownCommand", "Неизвестная команда."}
+                {"UnknownCommand", "Неизвестная команда."},
+                {"DuplicatePlayerName", "Имя не должно совпадать с первым игроком!"},
+                {"InvalidName", "Имя не может быть пустым!"},
+                {"AvailableCommands", "Доступные команды:\n/show-words - показать все слова\n/score - текущий счет\n/total-score - общий счет"},
+                {"InvalidResponse", "Некорректный ответ. Используйте 'да' или 'нет'"},
+                {"ContinuePrompt", "Введите следующее слово или команду:"}
             }
         },
         {
@@ -353,7 +407,12 @@ static class LocalizationManager
                 {"CommandShowWords", "Used words in current game:"},
                 {"CommandScore", "Current players' scores: {player1}: {wins1}, {player2}: {wins2}"},
                 {"CommandTotalScore", "Total scores for all players:"},
-                {"UnknownCommand", "Unknown command."}
+                {"UnknownCommand", "Unknown command."},
+                {"DuplicatePlayerName", "Name must be different from first player!"},
+                {"InvalidName", "Name cannot be empty!"},
+                {"AvailableCommands", "Available commands:\n/show-words - show all words\n/score - current score\n/total-score - total score"},
+                {"InvalidResponse", "Invalid response. Please use 'yes' or 'no'"},
+                {"ContinuePrompt", "Enter next word or command:"}
             }
         }
     };
@@ -368,10 +427,4 @@ static class LocalizationManager
         }
         return string.Empty;
     }
-}
-
-// Data structure for storing game statistics and player wins
-public class GameData
-{
-    public Dictionary<string, int> PlayerWins { get; set; } = new Dictionary<string, int>();
 }
